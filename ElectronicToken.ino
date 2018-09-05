@@ -5,110 +5,273 @@
 #include <stdio.h>
 
 #define minDelay 0
-#define maxDelay 20
-#define deltaDelay 4
+#define maxDelay 5
+#define deltaDelay 1
 
 Adafruit_SSD1306 display(4);
-unsigned long int counter = 200;
-short delayTime = maxDelay;
-short currDelay = 0;
-short displayIndex = 2;
-bool pressed4 = false;
-bool pressed5 = false;
+
+// 0.sick, 1.tapped, 2.active, 3.other, 4.flag, 5.damage, 6.life
+unsigned int counts[7] = {0, 0, 0, 0, 0, 1, 1};
+//                               sick,   tapped,   active,   other,    flag,     damage,   life
+byte positions[7][2] =         {{48, 0}, {48, 8}, {48, 16}, {98, 8}, {116, 24}, {60, 56}, {0, 0}};
+byte SelectorPositions[7][2] = {{42, 0}, {42, 8}, {42, 16}, {92, 8}, {105, 24}, {54, 56}, {0, 0}};
+
+byte index = 3;
+byte delayTime = maxDelay;
+byte currDelay = 0;
+
+bool pressed2 = false;
+bool pressed3 = false;
+bool pressed6 = false;
+bool pressed7 = false;
+bool pressed8 = false;
 
 
 void setup() {
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  
-  pinMode(2, INPUT_PULLUP);
-  pinMode(3, INPUT_PULLUP);
-  pinMode(4, INPUT_PULLUP);
-  pinMode(5, INPUT_PULLUP);
 
-  display.setTextColor(WHITE);
+  pinMode(2, INPUT_PULLUP); // Up
+  pinMode(3, INPUT_PULLUP); // Down
+  pinMode(4, INPUT_PULLUP); // Increase
+  pinMode(5, INPUT_PULLUP); // Decrease
+  pinMode(6, INPUT_PULLUP); // New Turn
+  pinMode(7, INPUT_PULLUP); // Double
+  pinMode(8, INPUT_PULLUP); // Wipe
 
-  displayCounter();
+  display.setTextColor(WHITE, BLACK);
+  display.setTextSize(1);
+  display.setTextWrap(false);
+
+  drawLabels();
 }
 
 
 void loop() {
-  if (currDelay > 0) {
-    currDelay--;
-  } else {
-    if (!digitalRead(2)) {
-      counter++;
-      displayCounter();
-      currDelay = delayTime;
-      if (delayTime > minDelay) {
-        delayTime -= deltaDelay;
-      }
-    } else if (!digitalRead(3)) {
-      if (counter > 0) {
-        counter--;
-        displayCounter();
-        currDelay = delayTime;
-        if (delayTime > minDelay) {
-          delayTime -= deltaDelay;
-        }
-      }
+    if (currDelay > 0) {
+        currDelay--;
     } else {
-      delayTime = maxDelay;
-      currDelay = 0;
+        if (!digitalRead(4)) {
+            if (index != 4) {
+                counts[index]++;
+                if (index == 2 and counts[1] > 0) {
+                    counts[1]--;
+                    index = 1;
+                    writeCounts();
+                    index = 2;
+                }
+
+                if (index == 1 and counts[2] > 0) {
+                    counts[2]--;
+                    index = 2;
+                    writeCounts();
+                    index = 1;
+                }
+
+                writeCounts();
+                if (counts[4]) writeDL();
+            } else {
+                counts[index] = !counts[index];
+                writeFlag();
+            }
+            currDelay = delayTime;
+            if (delayTime > minDelay) {
+                delayTime -= deltaDelay;
+            }
+            display.display();
+            return;
+        } else if (!digitalRead(5)) {
+            if (index != 4) {
+                if (counts[index] > 0) {
+                    counts[index]--;
+                    writeCounts();
+                    if (counts[4]) writeDL();
+                }
+            } else {
+                counts[index] = !counts[index];
+                writeFlag();
+            }
+            currDelay = delayTime;
+            if (delayTime > minDelay) {
+                delayTime -= deltaDelay;
+            }
+            display.display();;
+            return;
+        } else {
+            delayTime = maxDelay;
+            currDelay = 0;
+        }
     }
-  }
-  if (!digitalRead(4)) {
-    if (!pressed4) {
-      pressed4 = true;
-      counter *= 2;
-      displayCounter();
+    if (!digitalRead(2)) {
+        if (!pressed2) {
+            pressed2 = true;
+            if (index == 0)
+                index = 6;
+            else
+                index--;
+            drawSelector();
+        }
+    } else {
+        pressed2 = false;
     }
-  } else {
-    pressed4 = false;
-  }
-  if (!digitalRead(5)) {
-    if (!pressed5) {
-      pressed5 = true;
-      counter = 0;
-      displayCounter();
+    if (!digitalRead(3)) {
+        if (!pressed3) {
+            pressed3 = true;
+            if (index == 6)
+                index = 0;
+            else
+                index++;
+            drawSelector();
+        }
+    } else {
+        pressed3 = false;
     }
-  } else {
-    pressed5 = false;
-  }
-  delay(10);
+    if (!digitalRead(6)) {
+        if (!pressed6) {
+            pressed6 = true;
+            counts[2] += counts[0] + counts[1];
+            counts[0] = 0;
+            counts[1] = 0;
+            writeAllCounts();
+        }
+    } else {
+        pressed6 = false;
+    }
+    if (!digitalRead(7)) {
+        if (!pressed7) {
+            unsigned int all;
+            pressed7 = true;
+
+            if (counts[0] > 0)
+                counts[0]--;
+            else if (counts[1] > 0)
+                counts[1]--;
+            else if (counts[2] > 0)
+                counts[2]--;
+            else
+                counts[3]--;
+
+            all = counts[0] + counts[1] + counts[2] + counts[3];
+            if (index < 3)
+                counts[index] += all;
+            else
+                counts[0] += all;
+
+            writeAllCounts();
+        }
+    } else {
+        pressed7 = false;
+    }
+    if (!digitalRead(8)) {
+        if (!pressed8) {
+            pressed8 = true;
+            for(byte i = 0; i < 4; i++)
+                counts[i] = 0;
+            writeAllCounts();
+        }
+    } else {
+        pressed8 = false;
+    }
+    display.display();
 }
 
-void displayCounter() {
-  display.clearDisplay();
-  //display.drawTriangle(22, 0, 20, 2, 24, 2, 1);
-  //display.drawTriangle(22, 7, 20, 5, 24, 5, 1);
-  display.setCursor(0, 0);
-  display.setTextSize(1);
-  //char c[11];
-  //sprintf(c, "  Sick: %6lu", counter);
-  display.print("  Sick:*");
-  display.println(counter);
 
-  display.setCursor(0, 8);
-  display.println("Tapped:*100");
+void drawLabels() {
+    display.clearDisplay();
 
-  display.setCursor(0, 16);
-  display.println("Active:*2304");
+    display.setCursor(0, 0);
+    display.print("  Sick: 0");
 
-  display.setCursor(0, 56);
-  display.println("        *4050/4050");
+    display.setCursor(0, 8);
+    display.println("Tapped: 0");
 
-  display.setCursor(98, 0);
-  display.println("Other");
-  
-  display.setCursor(104, 8);
-  display.println("*120");
-  
-  display.setCursor(80, 24);
-  display.println("Flag [ ]");
-  
-  display.setCursor(0, 38);
-  display.setTextSize(2);
-  display.println(" Rat Token");
-  display.display();
+    display.setCursor(0, 16);
+    display.println("Active: 0");
+
+    display.setCursor(98, 0);
+    display.println("Other");
+
+    display.setCursor(98, 8);
+    display.println("0");
+
+    display.setCursor(80, 24);
+    display.println("Flag [ ]");
+
+    display.setCursor(12, 38);
+    display.setTextSize(2);
+    display.println("Rat Token");
+    display.setTextSize(1);
+
+    display.setCursor(60, 56);
+    display.println("1/1");
+
+    drawSelector();
+    display.display()
 }
 
+
+void writeCounts() {
+    display.setCursor(positions[index][0], positions[index][1]);
+    display.print("      ");
+    display.setCursor(positions[index][0], positions[index][1]);
+    display.print(counts[index]);
+}
+
+
+void writeAllCounts() {
+    byte save = index;
+    for(byte i = 0; i < 4; i++) {
+        index = i;
+        writeCounts();
+    }
+    writeDL();
+    index = save;
+}
+
+
+void writeFlag() {
+    display.setCursor(positions[4][0], positions[4][1]);
+    if (counts[4]) display.print("X");
+    else      display.print(" ");
+    writeDL();
+}
+
+
+void writeDL() {
+    unsigned long int sum;
+    display.setCursor(positions[5][0], positions[5][1]);
+    if (counts[4]) {
+        sum = counts[0] + counts[1] + counts[2] + counts[3];
+    } else {
+        sum = 0;
+    }
+    display.print(sum + counts[5]);
+    display.print("/");
+    display.print(sum + counts[6]);
+    if (index == 6)
+        display.print("*");
+    else
+        display.print(" ");
+    display.print("             ");
+}
+
+void drawSelector() {
+    byte ind;
+    if (index == 0)
+        ind = 6;
+    else
+        ind = index - 1;
+    display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
+    display.print(" ");
+    if (index != 6) {
+        ind = index;
+        display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
+        display.print("*");
+    }
+    if (index == 6)
+        ind = 0;
+    else
+        ind = index + 1;
+    display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
+    display.print(" ");
+    writeDL();
+}
