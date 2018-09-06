@@ -13,8 +13,8 @@ Adafruit_SSD1306 display(4);
 // 0.sick, 1.tapped, 2.active, 3.other, 4.flag, 5.damage, 6.life
 unsigned int counts[7] = {0, 0, 0, 0, 0, 1, 1};
 //                               sick,   tapped,   active,   other,    flag,     damage,   life
-byte positions[7][2] =         {{48, 0}, {48, 8}, {48, 16}, {98, 8}, {116, 24}, {60, 56}, {0, 0}};
-byte SelectorPositions[7][2] = {{42, 0}, {42, 8}, {42, 16}, {92, 8}, {105, 24}, {54, 56}, {0, 0}};
+byte positions[7][2] =         {{48, 0}, {48, 8}, {48, 16}, {98, 8}, {116, 24}, {60, 56}, {60, 56}};
+byte SelectorPositions[7][2] = {{42, 0}, {42, 8}, {42, 16}, {92, 8}, {105, 24}, {54, 56}, {60, 56}};
 
 byte index = 3;
 byte delayTime = maxDelay;
@@ -68,7 +68,7 @@ void loop() {
                 }
 
                 writeCounts();
-                if (counts[4]) writeDL();
+                writeDL();
             } else {
                 counts[index] = !counts[index];
                 writeFlag();
@@ -84,7 +84,7 @@ void loop() {
                 if (counts[index] > 0) {
                     counts[index]--;
                     writeCounts();
-                    if (counts[4]) writeDL();
+                    writeDL();
                 }
             } else {
                 counts[index] = !counts[index];
@@ -147,8 +147,10 @@ void loop() {
                 counts[1]--;
             else if (counts[2] > 0)
                 counts[2]--;
-            else
+            else if (counts[3] > 0)
                 counts[3]--;
+            else
+                return;
 
             all = counts[0] + counts[1] + counts[2] + counts[3];
             if (index < 3)
@@ -205,7 +207,7 @@ void drawLabels() {
     display.println("1/1");
 
     drawSelector();
-    display.display()
+    display.display();
 }
 
 
@@ -223,8 +225,8 @@ void writeAllCounts() {
         index = i;
         writeCounts();
     }
-    writeDL();
     index = save;
+    writeDL();
 }
 
 
@@ -256,21 +258,16 @@ void writeDL() {
 
 void drawSelector() {
     byte ind;
-    if (index == 0)
-        ind = 6;
-    else
-        ind = index - 1;
+
+    ind = !index ? 6 : index - 1;
     display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
     display.print(" ");
-    if (index != 6) {
-        ind = index;
-        display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
-        display.print("*");
-    }
-    if (index == 6)
-        ind = 0;
-    else
-        ind = index + 1;
+
+    ind = index;
+    display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
+    display.print("*");
+
+    ind = index == 6 ? 0 : index + 1;
     display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
     display.print(" ");
     writeDL();
