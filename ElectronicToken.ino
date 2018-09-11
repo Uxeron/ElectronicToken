@@ -2,7 +2,8 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <stdio.h>
+#include <MathHelpers.h>
+#include <math.h>
 
 #define minDelay 0
 #define maxDelay 5
@@ -11,10 +12,10 @@
 Adafruit_SSD1306 display(4);
 
 // 0.sick, 1.tapped, 2.active, 3.other, 4.flag, 5.damage, 6.life
-unsigned int counts[7] = {0, 0, 0, 0, 0, 1, 1};
+double counts[7] = {0, 0, 0, 0, 0, 1, 1};
 //                               sick,   tapped,   active,   other,    flag,     damage,   life
-byte positions[7][2] =         {{48, 0}, {48, 8}, {48, 16}, {98, 8}, {116, 24}, {60, 56}, {60, 56}};
-byte SelectorPositions[7][2] = {{42, 0}, {42, 8}, {42, 16}, {92, 8}, {105, 24}, {54, 56}, {60, 56}};
+byte positions[7][2] =         {{48, 0}, {48, 8}, {48, 16}, {98, 8}, {116, 24}, {26, 56}, {60, 56}};
+byte SelectorPositions[7][2] = {{42, 0}, {42, 8}, {42, 16}, {92, 8}, {105, 24}, {26, 56}, {60, 56}};
 
 byte index = 3;
 byte delayTime = maxDelay;
@@ -94,7 +95,7 @@ void loop() {
             if (delayTime > minDelay) {
                 delayTime -= deltaDelay;
             }
-            display.display();;
+            display.display();
             return;
         } else {
             delayTime = maxDelay;
@@ -138,7 +139,7 @@ void loop() {
     }
     if (!digitalRead(7)) {
         if (!pressed7) {
-            unsigned int all;
+            double all;
             pressed7 = true;
 
             if (counts[0] > 0)
@@ -213,9 +214,9 @@ void drawLabels() {
 
 void writeCounts() {
     display.setCursor(positions[index][0], positions[index][1]);
-    display.print("      ");
+    display.print("       ");
     display.setCursor(positions[index][0], positions[index][1]);
-    display.print(counts[index]);
+    print(counts[index]);
 }
 
 
@@ -239,16 +240,31 @@ void writeFlag() {
 
 
 void writeDL() {
-    unsigned long int sum;
-    display.setCursor(positions[5][0], positions[5][1]);
-    if (counts[4]) {
+    double sum;
+    if (counts[4])
         sum = counts[0] + counts[1] + counts[2] + counts[3];
-    } else {
+    else
         sum = 0;
+
+    display.setCursor(positions[5][0], positions[5][1]);
+
+    if (sum < 999999.0) {
+        byte len = 6 - (byte) floor(log10(sum + counts[5]));
+        for (byte i = 0; i < len; i++) {
+            display.print(" ");
+        }
     }
-    display.print(sum + counts[5]);
+
+    if (isinf(sum)) display.print("    ");
+
+    if (index == 5)
+        display.print("*");
+    else
+        display.print(" ");
+
+    print(sum + counts[5]);
     display.print("/");
-    display.print(sum + counts[6]);
+    print(sum + counts[6]);
     if (index == 6)
         display.print("*");
     else
@@ -271,4 +287,11 @@ void drawSelector() {
     display.setCursor(SelectorPositions[ind][0], SelectorPositions[ind][1]);
     display.print(" ");
     writeDL();
+}
+
+void print(double number) {
+    if (number > 999999.0)
+        display.print(sci(number, 1));
+    else
+        display.print(number, 0);
 }
